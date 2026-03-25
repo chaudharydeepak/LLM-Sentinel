@@ -6,7 +6,7 @@ A lightweight, cross-platform tool that monitors locally-running LLM processes f
 
 | Login | Dashboard | Alert |
 |---|---|---|
-| <img src="docs/screenshots/llm-login.png" width="320" alt="Login"> | <img src="docs/screenshots/llm-dashboard.png" width="320" alt="Dashboard"> | <img src="docs/screenshots/llm-dashboard-red.png" width="320" alt="Alert"> |
+| <img src="docs/screenshots/llm-login.png" width="480" alt="Login"> | <img src="docs/screenshots/llm-dashboard.png" width="480" alt="Dashboard"> | <img src="docs/screenshots/llm-dashboard-red.png" width="480" alt="Alert"> |
 
 ## Why
 
@@ -169,9 +169,9 @@ The dashboard auto-refreshes every 3 seconds. Use **Session History** to browse 
 
 ## Screenshots
 - See `docs/screenshots/` for dashboard and alert images
-- <img src="docs/screenshots/llm-login.png" width="320" alt="Login">
-- <img src="docs/screenshots/llm-dashboard.png" width="320" alt="Dashboard">
-- <img src="docs/screenshots/llm-dashboard-red.png" width="320" alt="Alert">
+- <img src="docs/screenshots/llm-login.png" width="480" alt="Login">
+- <img src="docs/screenshots/llm-dashboard.png" width="480" alt="Dashboard">
+- <img src="docs/screenshots/llm-dashboard-red.png" width="480" alt="Alert">
 
 ## Running tests
 ```bash
