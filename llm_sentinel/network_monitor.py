@@ -10,14 +10,17 @@ from typing import Optional
 
 # Private/loopback ranges — connections to these are considered safe
 _LOCAL_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),     # loopback
-    ipaddress.ip_network("::1/128"),           # IPv6 loopback
-    ipaddress.ip_network("10.0.0.0/8"),        # private
-    ipaddress.ip_network("172.16.0.0/12"),     # private
-    ipaddress.ip_network("192.168.0.0/16"),    # private
-    ipaddress.ip_network("169.254.0.0/16"),    # link-local
-    ipaddress.ip_network("fc00::/7"),          # IPv6 ULA
-    ipaddress.ip_network("fe80::/10"),         # IPv6 link-local
+    ipaddress.ip_network("127.0.0.0/8"),       # loopback
+    ipaddress.ip_network("::1/128"),            # IPv6 loopback
+    ipaddress.ip_network("::ffff:0:0/96"),      # IPv4-mapped IPv6 (::ffff:127.x.x.x etc.)
+    ipaddress.ip_network("64:ff9b::/96"),       # IPv4/IPv6 translation (RFC 6052)
+    ipaddress.ip_network("10.0.0.0/8"),         # private
+    ipaddress.ip_network("172.16.0.0/12"),      # private
+    ipaddress.ip_network("192.168.0.0/16"),     # private
+    ipaddress.ip_network("169.254.0.0/16"),     # link-local
+    ipaddress.ip_network("fc00::/7"),           # IPv6 ULA
+    ipaddress.ip_network("fe80::/10"),          # IPv6 link-local
+    ipaddress.ip_network("100.64.0.0/10"),      # CGNAT / shared address space
 ]
 
 
@@ -41,6 +44,12 @@ def _is_external(ip_str: str) -> bool:
     """Return True if the IP is a routable (non-private) address."""
     if not ip_str or ip_str in ("", "0.0.0.0", "::", "*"):
         return False
+    # psutil sometimes returns IPv4-in-IPv6 notation like "::127.0.0.1"
+    # which ipaddress doesn't recognise as loopback — normalise it first
+    if ip_str.startswith("::") and "." in ip_str:
+        ip_str = ip_str.lstrip(":")  # "::127.0.0.1" → "127.0.0.1"
+        if not ip_str:
+            return False
     try:
         addr = ipaddress.ip_address(ip_str)
         if addr.is_loopback or addr.is_private or addr.is_link_local or addr.is_unspecified:

@@ -27,17 +27,27 @@ _KNOWN_ORGS: list[tuple[str, str]] = [
     ("35.0.0.0/8",          "Google Cloud"),
     ("142.250.0.0/15",      "Google"),
     ("172.217.0.0/16",      "Google"),
-    # AWS
+    # AWS / CloudFront CDN
+    ("2600:9000::/20",      "AWS CloudFront"),   # CloudFront IPv6
+    ("2600:1f18::/36",      "AWS"),              # AWS IPv6
+    ("13.32.0.0/15",        "AWS CloudFront"),
+    ("13.35.0.0/16",        "AWS CloudFront"),
     ("52.0.0.0/8",          "AWS"),
     ("54.0.0.0/8",          "AWS"),
     ("3.0.0.0/8",           "AWS"),
     ("18.0.0.0/8",          "AWS"),
+    ("13.0.0.0/8",          "AWS"),
     # Azure
     ("20.0.0.0/8",          "Azure"),
     ("40.0.0.0/8",          "Azure"),
-    # Hugging Face / model registries
-    ("18.200.0.0/13",       "AWS (HuggingFace)"),
-    # Meta / OpenAI hosted
+    # GitHub
+    ("2606:50c0::/32",      "GitHub"),
+    ("140.82.112.0/20",     "GitHub"),
+    ("185.199.108.0/22",    "GitHub"),
+    ("192.30.252.0/22",     "GitHub"),
+    # Hugging Face
+    ("18.200.0.0/13",       "HuggingFace (AWS)"),
+    # Meta
     ("157.240.0.0/16",      "Meta"),
 ]
 
