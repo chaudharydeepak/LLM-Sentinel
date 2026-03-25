@@ -18,7 +18,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt httpx pytest
+        run: pip install -r requirements.txt httpx pytest pytest-cov
 
-      - name: Run tests
-        run: pytest tests/ -q
+      - name: Run tests with coverage
+        run: pytest tests/ -q --cov=llm_sentinel --cov-report=term-missing --cov-config=.coveragerc --cov-fail-under=80
