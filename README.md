@@ -4,9 +4,14 @@ A lightweight, cross-platform tool that monitors locally-running LLM processes f
 
 ## Screenshots
 
-| Login | Dashboard | Alert |
-|---|---|---|
-| <img src="docs/screenshots/llm-login.png" width="480" alt="Login"> | <img src="docs/screenshots/llm-dashboard.png" width="480" alt="Dashboard"> | <img src="docs/screenshots/llm-dashboard-red.png" width="480" alt="Alert"> |
+### Login 
+<img src="docs/screenshots/llm-login.png" width="560" alt="Login">
+
+### Dashboard
+<img src="docs/screenshots/llm-dashboard.png" width="560" alt="Dashboard">
+
+### Alert
+<img src="docs/screenshots/llm-dashboard-red.png" width="560" alt="Alert">
 
 ## Why
 
