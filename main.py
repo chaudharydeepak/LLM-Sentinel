@@ -10,10 +10,15 @@ import time
 from llm_sentinel.alerts import AlertManager
 from llm_sentinel.network_monitor import get_all_llm_connections
 from llm_sentinel.process_monitor import get_llm_processes
+from llm_sentinel.resolver import hostname
+from llm_sentinel.session_log import SessionLog
 
 
-def build_sentinel(alert_manager: AlertManager):
+def build_sentinel(alert_manager: AlertManager, session_log: SessionLog):
     scan_count = 0
+    # Tracks currently-open external connections: key -> log row_id
+    # key = (pid, remote_ip, remote_port)
+    open_conns: dict[tuple, int] = {}
 
     def tick():
         nonlocal scan_count
@@ -23,11 +28,31 @@ def build_sentinel(alert_manager: AlertManager):
         pids = [p.pid for p in processes]
         connections_by_pid = get_all_llm_connections(pids)
 
+        # Build set of currently active external connection keys
+        active_keys: set[tuple] = set()
+
         for proc in processes:
             conns = connections_by_pid.get(proc.pid, [])
             proc.connections = conns
             for conn in conns:
-                if conn.is_external:
+                if not conn.is_external:
+                    continue
+
+                key = (proc.pid, conn.remote_ip, conn.remote_port)
+                active_keys.add(key)
+
+                if key not in open_conns:
+                    # New connection — log it and fire an alert
+                    host = hostname(conn.remote_ip)
+                    row_id = session_log.record_opened(
+                        pid=proc.pid,
+                        process_name=proc.name,
+                        remote_ip=conn.remote_ip,
+                        hostname=host,
+                        port=conn.remote_port,
+                        protocol=conn.protocol,
+                    )
+                    open_conns[key] = row_id
                     alert_manager.record(
                         pid=proc.pid,
                         process_name=proc.name,
@@ -35,8 +60,20 @@ def build_sentinel(alert_manager: AlertManager):
                         remote_port=conn.remote_port,
                         protocol=conn.protocol,
                     )
+                else:
+                    # Still active — update heartbeat and refresh hostname if resolved
+                    row_id = open_conns[key]
+                    session_log.record_seen(row_id)
+                    host = hostname(conn.remote_ip)
+                    if host != conn.remote_ip:
+                        session_log.update_hostname(row_id, host)
 
-        return processes, alert_manager, scan_count
+        # Detect closed connections (were open last scan, not active now)
+        closed_keys = set(open_conns.keys()) - active_keys
+        for key in closed_keys:
+            session_log.record_closed(open_conns.pop(key))
+
+        return processes, alert_manager, session_log, scan_count
 
     return tick
 
@@ -45,23 +82,24 @@ def run_dashboard_mode(interval: float, log_file: str | None):
     from llm_sentinel.dashboard import run_dashboard
 
     alert_manager = AlertManager(log_to_file=log_file)
-    sentinel_fn = build_sentinel(alert_manager)
+    session_log = SessionLog()
+    sentinel_fn = build_sentinel(alert_manager, session_log)
     run_dashboard(sentinel_fn, interval=interval)
 
 
 def run_cli_mode(interval: float, log_file: str | None, count: int | None):
-    """Non-interactive mode — prints findings to stdout."""
     from rich.console import Console
     from rich.table import Table
 
     console = Console()
     alert_manager = AlertManager(log_to_file=log_file)
-    sentinel_fn = build_sentinel(alert_manager)
+    session_log = SessionLog()
+    sentinel_fn = build_sentinel(alert_manager, session_log)
     scans = 0
 
     try:
         while True:
-            processes, am, scan_num = sentinel_fn()
+            processes, am, sl, scan_num = sentinel_fn()
             scans += 1
 
             table = Table(title=f"Scan #{scan_num}", show_lines=True)
