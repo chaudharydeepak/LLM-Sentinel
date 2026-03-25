@@ -2,6 +2,12 @@
 
 A lightweight, cross-platform tool that monitors locally-running LLM processes for unexpected external network connections — giving you visibility into when your AI models are "phoning home".
 
+## Screenshots
+
+| Login | Dashboard | Alert |
+|---|---|---|
+| <img src="docs/screenshots/llm-login.png" width="320" alt="Login"> | <img src="docs/screenshots/llm-dashboard.png" width="320" alt="Dashboard"> | <img src="docs/screenshots/llm-dashboard-red.png" width="320" alt="Alert"> |
+
 ## Why
 
 Local LLMs are increasingly complex stacks: inference servers, frontends, Python wrappers, Electron apps. Any of these could make network calls you didn't authorise — model downloads, telemetry, exfiltration. LLM Sentinel watches every connection those processes make and alerts you in real time.
@@ -160,8 +166,14 @@ Web dashboard → http://127.0.0.1:7777
 
 The dashboard auto-refreshes every 3 seconds. Use **Session History** to browse past runs and expand individual sessions to see the full connection event log.
 
-## Running tests
 
+## Screenshots
+- See `docs/screenshots/` for dashboard and alert images
+- <img src="docs/screenshots/llm-login.png" width="320" alt="Login">
+- <img src="docs/screenshots/llm-dashboard.png" width="320" alt="Dashboard">
+- <img src="docs/screenshots/llm-dashboard-red.png" width="320" alt="Alert">
+
+## Running tests
 ```bash
 pip install pytest httpx
 pytest tests/
