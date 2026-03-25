@@ -84,7 +84,7 @@ def build_sentinel(alert_manager: AlertManager, session_log: SessionLog,
 
 
 def run_dashboard_mode(interval: float, log_file: str | None, web: bool = False,
-                       web_port: int = 7777):
+                       web_port: int = 7777, web_password: str | None = None):
     from llm_sentinel.dashboard import run_dashboard
 
     alert_manager = AlertManager(log_to_file=log_file)
@@ -92,10 +92,25 @@ def run_dashboard_mode(interval: float, log_file: str | None, web: bool = False,
     sentinel_fn = build_sentinel(alert_manager, session_log, web_enabled=web)
 
     if web:
-        from llm_sentinel.web import start as start_web
+        import secrets as _secrets
+        from llm_sentinel.auth import AuthDB
+        from llm_sentinel.web import start as start_web, setup_auth
+
+        auth = AuthDB(session_log._conn)
+
+        if web_password:
+            auth.create_user("admin", web_password)
+            print(f"  Web auth: password set for admin")
+        elif not auth.has_users():
+            generated = _secrets.token_urlsafe(12)
+            auth.create_user("admin", generated)
+            print(f"  Web auth: no users found — created admin account")
+            print(f"  Web password: {generated}")
+            print(f"  (change with --web-password YOUR_PASSWORD)")
+
+        setup_auth(auth)
         url = start_web(port=web_port)
-        import time; time.sleep(0.5)  # let server bind
-        # Show URL in terminal before dashboard takes over
+        import time; time.sleep(0.5)
         print(f"  Web dashboard → {url}")
         time.sleep(1.5)
 
@@ -178,6 +193,11 @@ def main():
         metavar="PORT",
         help="Port for web dashboard (default: 7777)",
     )
+    parser.add_argument(
+        "--web-password",
+        metavar="PASSWORD",
+        help="Set the admin password for the web dashboard",
+    )
     args = parser.parse_args()
 
     try:
@@ -185,7 +205,8 @@ def main():
             run_cli_mode(interval=args.interval, log_file=args.log, count=args.count)
         else:
             run_dashboard_mode(interval=args.interval, log_file=args.log,
-                               web=args.web, web_port=args.web_port)
+                               web=args.web, web_port=args.web_port,
+                               web_password=args.web_password)
     except KeyboardInterrupt:
         print("\nStopped.")
         sys.exit(0)

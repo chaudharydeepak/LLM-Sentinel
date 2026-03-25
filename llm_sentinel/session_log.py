@@ -87,7 +87,9 @@ class SessionLog:
         self._session_id = self._init_session()
 
     def _init_session(self) -> str:
-        sid = f"{time.strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+        # Include nanosecond component so multiple instances in the same
+        # process/second (e.g., during tests) get distinct session IDs.
+        sid = f"{time.strftime('%Y%m%d_%H%M%S')}_{os.getpid()}_{time.monotonic_ns() % 1_000_000_000}"
         self._conn.execute(
             "INSERT OR REPLACE INTO meta VALUES ('last_session', ?)", (sid,)
         )
@@ -214,6 +216,35 @@ class SessionLog:
             "phases": phases,
             "session_age_s": session_age_s,
         }
+
+    def list_sessions(self) -> list[dict]:
+        """Return summary of all sessions, newest first."""
+        rows = self._conn.execute("""
+            SELECT
+                session_id,
+                MIN(ts)        AS started_at,
+                MAX(last_seen) AS last_active,
+                COUNT(*)       AS conn_count,
+                COUNT(DISTINCT remote_ip) AS unique_ips,
+                GROUP_CONCAT(DISTINCT process_name) AS processes
+            FROM connections
+            GROUP BY session_id
+            ORDER BY started_at DESC
+        """).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["is_current"] = d["session_id"] == self._session_id
+            result.append(d)
+        return result
+
+    def get_session_events(self, session_id: str) -> list[ConnectionEvent]:
+        """Return all events for a given session, oldest first."""
+        rows = self._conn.execute(
+            "SELECT * FROM connections WHERE session_id=? ORDER BY ts",
+            (session_id,),
+        ).fetchall()
+        return [self._row_to_event(r) for r in rows]
 
     def close(self):
         self._conn.close()
