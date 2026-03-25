@@ -2,17 +2,6 @@
 
 A lightweight, cross-platform tool that monitors locally-running LLM processes for unexpected external network connections — giving you visibility into when your AI models are "phoning home".
 
-## Screenshots
-
-### Login 
-<img src="docs/screenshots/llm-login.png" width="560" alt="Login">
-
-### Dashboard
-<img src="docs/screenshots/llm-dashboard.png" width="560" alt="Dashboard">
-
-### Alert
-<img src="docs/screenshots/llm-dashboard-red.png" width="560" alt="Alert">
-
 ## Why
 
 Local LLMs are increasingly complex stacks: inference servers, frontends, Python wrappers, Electron apps. Any of these could make network calls you didn't authorise — model downloads, telemetry, exfiltration. LLM Sentinel watches every connection those processes make and alerts you in real time.
