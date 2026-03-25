@@ -1,8 +1,9 @@
 """
-Non-blocking, cached reverse DNS resolver.
+Non-blocking, cached resolver: reverse DNS + known-org fallback.
 Lookups run in a background thread pool so they never stall the dashboard.
 """
 
+import ipaddress
 import socket
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -12,22 +13,87 @@ _pending: set[str] = set()
 _lock = threading.Lock()
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="dns")
 
+# Well-known IP ranges → org label, checked when PTR lookup fails or returns raw IP.
+# Ordered most-specific first.
+_KNOWN_ORGS: list[tuple[str, str]] = [
+    # Cloudflare
+    ("2606:4700::/32",      "Cloudflare"),
+    ("2606:4700:2ff9::1",   "Cloudflare"),   # specific anycast addr
+    ("1.1.1.0/24",          "Cloudflare DNS"),
+    ("1.0.0.0/24",          "Cloudflare DNS"),
+    # Google
+    ("2001:4860::/32",      "Google"),
+    ("34.0.0.0/8",          "Google Cloud"),
+    ("35.0.0.0/8",          "Google Cloud"),
+    ("142.250.0.0/15",      "Google"),
+    ("172.217.0.0/16",      "Google"),
+    # AWS
+    ("52.0.0.0/8",          "AWS"),
+    ("54.0.0.0/8",          "AWS"),
+    ("3.0.0.0/8",           "AWS"),
+    ("18.0.0.0/8",          "AWS"),
+    # Azure
+    ("20.0.0.0/8",          "Azure"),
+    ("40.0.0.0/8",          "Azure"),
+    # Hugging Face / model registries
+    ("18.200.0.0/13",       "AWS (HuggingFace)"),
+    # Meta / OpenAI hosted
+    ("157.240.0.0/16",      "Meta"),
+]
+
+_parsed_orgs: list[tuple[ipaddress._BaseNetwork, str]] = []
+
+def _build_org_table():
+    for cidr, label in _KNOWN_ORGS:
+        try:
+            _parsed_orgs.append((ipaddress.ip_network(cidr, strict=False), label))
+        except ValueError:
+            # Handle single IPs like "2606:4700:2ff9::1"
+            try:
+                addr = ipaddress.ip_address(cidr)
+                bits = 128 if addr.version == 6 else 32
+                _parsed_orgs.append((ipaddress.ip_network(f"{cidr}/{bits}", strict=False), label))
+            except ValueError:
+                pass
+
+_build_org_table()
+
+
+def _known_org(ip: str) -> str | None:
+    try:
+        addr = ipaddress.ip_address(ip)
+        for net, label in _parsed_orgs:
+            if addr in net:
+                return label
+    except ValueError:
+        pass
+    return None
+
 
 def _resolve(ip: str) -> None:
+    result = None
     try:
         host = socket.gethostbyaddr(ip)[0]
+        # If the PTR record just echoes back the IP (common for CDN IPs), use org fallback
+        if host != ip:
+            result = host
     except Exception:
-        host = ip  # fall back to raw IP if DNS fails
+        pass
+
+    if result is None:
+        result = _known_org(ip) or ip
+
     with _lock:
-        _cache[ip] = host
+        _cache[ip] = result
         _pending.discard(ip)
 
 
 def hostname(ip: str) -> str:
     """
-    Return the resolved hostname for an IP, or the raw IP while lookup is pending.
-    First call for an unseen IP kicks off an async lookup; subsequent calls return
-    the cached result once it completes.
+    Return the best human-readable label for an IP:
+      1. Cached PTR hostname (if different from raw IP)
+      2. Known org label (Cloudflare, Google Cloud, AWS, etc.)
+      3. Raw IP (while lookup is still pending)
     """
     with _lock:
         if ip in _cache:
@@ -35,4 +101,4 @@ def hostname(ip: str) -> str:
         if ip not in _pending:
             _pending.add(ip)
             _executor.submit(_resolve, ip)
-    return ip  # return raw IP until resolved
+    return _known_org(ip) or ip

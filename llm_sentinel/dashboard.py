@@ -68,47 +68,55 @@ def _process_table(processes: list[LLMProcess]) -> Table:
 # ---------------------------------------------------------------------------
 
 def _external_table(processes: list[LLMProcess]) -> Table:
+    """Group external connections by (process, remote_ip, port) — shows count not individual rows."""
     table = Table(box=box.SIMPLE_HEAVY, header_style="bold red", expand=True)
-    table.add_column("PID", width=7)
     table.add_column("Process", min_width=10)
+    table.add_column("PID", style="dim", width=7)
     table.add_column("Proto", width=5)
-    table.add_column("Local Port", width=11)
-    table.add_column("Remote IP", min_width=18)
-    table.add_column("Hostname", min_width=28)
+    table.add_column("Remote IP", min_width=20)
+    table.add_column("Hostname / Org", min_width=26)
     table.add_column("Port", width=6)
+    table.add_column("Conns", width=6)
     table.add_column("Status", width=13)
 
-    rows = [
-        (proc, conn)
-        for proc in processes
-        for conn in proc.connections
-        if conn.is_external
-    ]
+    # Group: (proc_name, pid, remote_ip, remote_port, protocol) -> (count, status)
+    groups: dict[tuple, list] = {}
+    for proc in processes:
+        for conn in proc.connections:
+            if not conn.is_external:
+                continue
+            key = (proc.name, proc.pid, conn.remote_ip, conn.remote_port, conn.protocol)
+            groups.setdefault(key, []).append(conn.status)
 
-    if not rows:
-        table.add_row("", "[dim]None[/dim]", "", "", "", "", "", "")
+    if not groups:
+        table.add_row("[dim]None[/dim]", "", "", "", "", "", "", "")
         return table
 
-    for proc, conn in rows:
-        host = hostname(conn.remote_ip)
-        # Shorten long hostnames: keep last 3 labels
+    for (name, pid, remote_ip, port, proto), statuses in sorted(groups.items()):
+        count = len(statuses)
+        host = hostname(remote_ip)
         labels = host.split(".")
         short_host = ".".join(labels[-3:]) if len(labels) > 3 else host
-        if short_host != conn.remote_ip:
+
+        # If hostname resolved to something meaningful (not raw IP)
+        if short_host != remote_ip:
             host_cell = Text(short_host, style="bold yellow")
         else:
-            host_cell = Text(conn.remote_ip, style="red")  # still resolving
+            host_cell = Text("resolving…", style="dim italic")
 
-        local_port = conn.local_addr.rsplit(":", 1)[-1] if ":" in conn.local_addr else conn.local_addr
+        # Most common status in the group
+        status = max(set(statuses), key=statuses.count)
+        count_cell = Text(f"×{count}", style="bold red") if count > 1 else Text("×1")
+
         table.add_row(
-            str(proc.pid),
-            Text(proc.name, style="bold"),
-            conn.protocol.upper(),
-            local_port,
-            Text(conn.remote_ip, style="red"),
+            Text(name, style="bold"),
+            str(pid),
+            proto.upper(),
+            Text(remote_ip, style="red"),
             host_cell,
-            Text(str(conn.remote_port), style="bold red"),
-            conn.status,
+            Text(str(port), style="bold red"),
+            count_cell,
+            status,
         )
     return table
 
@@ -172,7 +180,7 @@ def _alerts_table(alert_manager: AlertManager) -> Table:
         host_cell = (
             Text(short_host, style="bold yellow")
             if short_host != alert.remote_addr
-            else Text("resolving…", style="dim")
+            else Text("resolving…", style="dim italic")
         )
         table.add_row(
             alert.formatted_time(),
@@ -233,9 +241,16 @@ def build_layout(
         f"    {status_msg}"
     )
 
+    # Count unique external destinations (grouped) for panel height
+    ext_groups: set[tuple] = set()
+    for proc in processes:
+        for conn in ext_conns:
+            ext_groups.add((proc.pid, conn.remote_ip, conn.remote_port))
+    n_ext_rows = max(len(ext_groups), 1)
+
     # Dynamic heights
     proc_h = max(len(processes) + 5, 6)
-    ext_h = max(n_ext + 5, 5)
+    ext_h = max(n_ext_rows + 5, 5)
     local_h = max(len(local_conns) + 5, 5) if local_conns else 4
     alert_h = max(min(len(alert_manager.get_alerts()), 20) + 5, 5)
 
