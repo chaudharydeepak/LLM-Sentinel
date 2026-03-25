@@ -14,7 +14,8 @@ from llm_sentinel.resolver import hostname
 from llm_sentinel.session_log import SessionLog
 
 
-def build_sentinel(alert_manager: AlertManager, session_log: SessionLog):
+def build_sentinel(alert_manager: AlertManager, session_log: SessionLog,
+                   web_enabled: bool = False):
     scan_count = 0
     # Tracks currently-open external connections: key -> log row_id
     # key = (pid, remote_ip, remote_port)
@@ -73,17 +74,31 @@ def build_sentinel(alert_manager: AlertManager, session_log: SessionLog):
         for key in closed_keys:
             session_log.record_closed(open_conns.pop(key))
 
+        if web_enabled:
+            from llm_sentinel.web import update_state
+            update_state(processes, session_log, scan_count, interval=3.0)
+
         return processes, alert_manager, session_log, scan_count
 
     return tick
 
 
-def run_dashboard_mode(interval: float, log_file: str | None):
+def run_dashboard_mode(interval: float, log_file: str | None, web: bool = False,
+                       web_port: int = 7777):
     from llm_sentinel.dashboard import run_dashboard
 
     alert_manager = AlertManager(log_to_file=log_file)
     session_log = SessionLog()
-    sentinel_fn = build_sentinel(alert_manager, session_log)
+    sentinel_fn = build_sentinel(alert_manager, session_log, web_enabled=web)
+
+    if web:
+        from llm_sentinel.web import start as start_web
+        url = start_web(port=web_port)
+        import time; time.sleep(0.5)  # let server bind
+        # Show URL in terminal before dashboard takes over
+        print(f"  Web dashboard → {url}")
+        time.sleep(1.5)
+
     run_dashboard(sentinel_fn, interval=interval)
 
 
@@ -151,13 +166,26 @@ def main():
         default=None,
         help="Run N scans then exit (useful for scripting)",
     )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Also serve web dashboard at http://localhost:7777",
+    )
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=7777,
+        metavar="PORT",
+        help="Port for web dashboard (default: 7777)",
+    )
     args = parser.parse_args()
 
     try:
         if args.no_dashboard:
             run_cli_mode(interval=args.interval, log_file=args.log, count=args.count)
         else:
-            run_dashboard_mode(interval=args.interval, log_file=args.log)
+            run_dashboard_mode(interval=args.interval, log_file=args.log,
+                               web=args.web, web_port=args.web_port)
     except KeyboardInterrupt:
         print("\nStopped.")
         sys.exit(0)
