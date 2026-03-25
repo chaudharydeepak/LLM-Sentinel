@@ -117,8 +117,9 @@ class SessionLog:
         return cur.lastrowid
 
     def record_seen(self, row_id: int) -> None:
+        # Only update last_seen — preserve the original event type ('opened')
         self._conn.execute(
-            "UPDATE connections SET last_seen=?, event='seen' WHERE id=?",
+            "UPDATE connections SET last_seen=? WHERE id=?",
             (time.time(), row_id),
         )
         self._conn.commit()

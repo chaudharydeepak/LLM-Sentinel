@@ -184,22 +184,24 @@ def _history_table(session_log: SessionLog) -> Table:
         return table
 
     for ev in events:
+        if ev.event == "seen":
+            continue
         host = hostname(ev.remote_ip)
         short = _short_host(ev.remote_ip, host)
 
-        event_cell = {
-            "opened": Text("OPENED", style="bold red"),
-            "closed": Text("CLOSED", style="bold green"),
-            "seen":   Text("active", style="dim yellow"),
-        }.get(ev.event, Text(ev.event))
+        still_open = ev.event == "opened" and ev.duration_s is None
+        event_cell = (
+            Text("OPEN", style="bold red")   if still_open else
+            Text("OPENED", style="red")      if ev.event == "opened" else
+            Text("CLOSED", style="bold green")
+        )
 
-        dur_cell = _fmt_dur(ev.duration_s)
-        if ev.event == "opened" and ev.duration_s is None:
-            dur_text = Text("active", style="bold yellow")
+        if still_open:
+            dur_text = Text("still open", style="bold yellow")
         elif ev.event == "closed":
-            dur_text = Text(dur_cell, style="green")
+            dur_text = Text(_fmt_dur(ev.duration_s), style="green")
         else:
-            dur_text = Text(dur_cell, style="dim")
+            dur_text = Text(_fmt_dur(ev.duration_s), style="dim")
 
         table.add_row(
             _fmt_ts(ev.ts),

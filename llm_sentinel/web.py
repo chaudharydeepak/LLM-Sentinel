@@ -79,18 +79,25 @@ def update_state(processes, session_log, scan_count: int, interval: float):
             continue
         host = hostname(ev.remote_ip)
         short = _short(ev.remote_ip, host)
-        dur = None
-        if ev.duration_s is not None:
+        still_open = ev.event == "opened" and ev.duration_s is None
+        if still_open:
+            dur = "still open"
+            display_event = "open"
+        elif ev.duration_s is not None:
             s = ev.duration_s
             dur = f"{s:.0f}s" if s < 60 else (f"{s/60:.1f}m" if s < 3600 else f"{s/3600:.1f}h")
+            display_event = ev.event
+        else:
+            dur = "—"
+            display_event = ev.event
         hist_out.append({
             "time": time.strftime("%H:%M:%S", time.localtime(ev.ts)),
-            "event": ev.event,
+            "event": display_event,
             "process": ev.process_name,
             "hostname": short,
             "ip": ev.remote_ip,
             "port": ev.port,
-            "duration": dur or "active",
+            "duration": dur,
         })
 
     # Insights
@@ -341,7 +348,7 @@ async function refresh() {
   $('hist-body').innerHTML = hist.length === 0
     ? '<tr><td colspan="6" class="empty">No events yet</td></tr>'
     : hist.map(h => {
-        const cls = {opened:'ev-opened', closed:'ev-closed'}[h.event] || 'ev-active';
+        const cls = {opened:'ev-opened', open:'ev-active', closed:'ev-closed'}[h.event] || 'ev-active';
         return `<tr>
           <td class="dim">${esc(h.time)}</td>
           <td><span class="badge-event ${cls}">${esc(h.event).toUpperCase()}</span></td>
