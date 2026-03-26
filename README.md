@@ -190,4 +190,4 @@ The ML library signal uses `psutil.memory_maps()` which is supported on Linux bu
 
 ## License
 
-MIT
+AGPL
