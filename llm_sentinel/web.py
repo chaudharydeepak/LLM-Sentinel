@@ -101,7 +101,7 @@ def update_state(processes, session_log, scan_count: int, interval: float):
             dur = "—"
             display_event = ev.event
         hist_out.append({
-            "time": time.strftime("%H:%M:%S", time.localtime(ev.ts)),
+            "time": _fmt_ts(ev.ts),
             "event": display_event,
             "process": ev.process_name,
             "hostname": short,
@@ -116,7 +116,7 @@ def update_state(processes, session_log, scan_count: int, interval: float):
     if raw:
         insights_out = {
             "session_age": _fmt_age(raw.get("session_age_s", 0)),
-            "unique_destinations": raw.get("unique_hosts", 0),
+            "unique_destinations": raw.get("unique_ips", 0),
             "total_connections": raw.get("total_connections", 0),
             "most_contacted": raw.get("most_contacted"),
             "phases": raw.get("phases", []),
@@ -145,6 +145,15 @@ def update_state(processes, session_log, scan_count: int, interval: float):
             "updated_at": time.strftime("%H:%M:%S"),
             "_session_log": session_log,
         })
+
+
+def _fmt_ts(ts: float) -> str:
+    """Format a unix timestamp. Shows HH:MM:SS for today, 'Mon DD HH:MM' for other days."""
+    local = time.localtime(ts)
+    today = time.localtime()
+    if local.tm_year == today.tm_year and local.tm_yday == today.tm_yday:
+        return time.strftime("%H:%M:%S", local)
+    return time.strftime("%b %d %H:%M", local)
 
 
 def _fmt_age(s: float) -> str:
@@ -229,7 +238,7 @@ def get_session_detail(session_id: str):
             _fmt_age(ev.duration_s) if ev.duration_s is not None else "—"
         )
         out.append({
-            "time": time.strftime("%H:%M:%S", time.localtime(ev.ts)),
+            "time": _fmt_ts(ev.ts),
             "event": "open" if still_open else ev.event,
             "process": ev.process_name,
             "hostname": ev.hostname if ev.hostname != ev.remote_ip else "",
@@ -830,7 +839,7 @@ _HTML = f"""<!DOCTYPE html>
     <div class="metric-tile">
       <div class="mt-label">Session Age</div>
       <div class="mt-value" id="tile-age">—</div>
-      <div class="mt-sub" id="tile-dests">— destinations</div>
+      <div class="mt-sub" id="tile-dests">— unique IPs</div>
     </div>
   </div>
 
@@ -909,7 +918,7 @@ _HTML = f"""<!DOCTYPE html>
         </div>
         <div class="insight-stat">
           <div class="insight-stat-val" id="ins-dests">—</div>
-          <div class="insight-stat-lbl">Destinations</div>
+          <div class="insight-stat-lbl">Unique IPs</div>
         </div>
         <div class="insight-stat">
           <div class="insight-stat-val" id="ins-total">—</div>
@@ -1014,7 +1023,7 @@ async function refresh() {{
 
   const ins = data.insights || {{}};
   document.getElementById('tile-age').textContent = ins.session_age || '—';
-  document.getElementById('tile-dests').textContent = (ins.unique_destinations || 0) + ' destinations';
+  document.getElementById('tile-dests').textContent = (ins.unique_destinations || 0) + ' unique IP' + (ins.unique_destinations !== 1 ? 's' : '');
 
   // Alert banner
   const banner = document.getElementById('ext-alert');
@@ -1090,7 +1099,7 @@ async function refresh() {{
     }};
     const phases = (ins.phases || []).map(p =>
       '<div class="phase-item">' +
-      '<span class="phase-time">' + (p.ts ? new Date(p.ts*1000).toLocaleTimeString() : '') + '</span>' +
+      '<span class="phase-time">' + (p.ts ? (function(d){{var t=new Date(d*1000),n=new Date();return t.toDateString()===n.toDateString()?t.toLocaleTimeString():t.toLocaleDateString()+' '+t.toLocaleTimeString();}})( p.ts) : '') + '</span>' +
       (icons[p.name] || '<span class="phase-icon">·</span>') +
       '<span>' + esc(p.label) + (p.count ? ' <span style="color:var(--text-3)">(' + p.count + ')</span>' : '') + '</span>' +
       '</div>'
@@ -1214,7 +1223,7 @@ function toggle(el) {{
         }}
         const rows = events.map(e =>
           '<tr>' +
-          '<td class="mono muted">' + esc(e.time) + '</td>' +
+          '<td class="mono muted" style="white-space:nowrap">' + esc(e.time) + '</td>' +
           '<td>' + evTag(e.event) + '</td>' +
           '<td>' + esc(e.process) + '</td>' +
           '<td class="warning">' + esc(e.hostname || e.ip) + '</td>' +
