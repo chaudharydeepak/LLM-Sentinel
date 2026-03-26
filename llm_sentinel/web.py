@@ -148,12 +148,8 @@ def update_state(processes, session_log, scan_count: int, interval: float):
 
 
 def _fmt_ts(ts: float) -> str:
-    """Format a unix timestamp. Shows HH:MM:SS for today, 'Mon DD HH:MM' for other days."""
-    local = time.localtime(ts)
-    today = time.localtime()
-    if local.tm_year == today.tm_year and local.tm_yday == today.tm_yday:
-        return time.strftime("%H:%M:%S", local)
-    return time.strftime("%b %d %H:%M", local)
+    """Format a unix timestamp as 'Mon DD HH:MM:SS'."""
+    return time.strftime("%b %d %H:%M:%S", time.localtime(ts))
 
 
 def _fmt_age(s: float) -> str:
@@ -558,6 +554,7 @@ _SHARED_STYLE = """
   }
 
   /* ── Table ── */
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .sn-table { width: 100%; border-collapse: collapse; }
   .sn-table th {
     font-size: 11px;
@@ -569,12 +566,14 @@ _SHARED_STYLE = """
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
     background: var(--bg-raised);
+    text-align: left;
   }
   .sn-table td {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border-sub);
     color: var(--text-1);
     vertical-align: middle;
+    white-space: nowrap;
   }
   .sn-table tr:last-child td { border-bottom: none; }
   .sn-table tbody tr:hover td { background: var(--bg-raised); }
@@ -1099,7 +1098,7 @@ async function refresh() {{
     }};
     const phases = (ins.phases || []).map(p =>
       '<div class="phase-item">' +
-      '<span class="phase-time">' + (p.ts ? (function(d){{var t=new Date(d*1000),n=new Date();return t.toDateString()===n.toDateString()?t.toLocaleTimeString():t.toLocaleDateString()+' '+t.toLocaleTimeString();}})( p.ts) : '') + '</span>' +
+      '<span class="phase-time">' + (p.ts ? new Date(p.ts*1000).toLocaleString() : '') + '</span>' +
       (icons[p.name] || '<span class="phase-icon">·</span>') +
       '<span>' + esc(p.label) + (p.count ? ' <span style="color:var(--text-3)">(' + p.count + ')</span>' : '') + '</span>' +
       '</div>'
